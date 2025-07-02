@@ -7,10 +7,10 @@ const userSchema = new Schema({
     username: {
         type: String,
         required: true,
-        unique: true,
+        // unique: true,
         lowercase: true,
-        trim: true,
-        index: true
+        // trim: true,
+        // index: true
     },
     email: {
         type: String,
@@ -19,26 +19,25 @@ const userSchema = new Schema({
         lowercase: true,
         trim: true
     },
-    fullname: {
-        type: String,
+    mobile: {
+        type: Number,
         required: true,
-        trim: true,
         index: true
-    },
-    avatar: {
-        type: String,
-        required: true
     },
     coverImage: {
         type: String
     },
-    watchHistory:[ {
+    listedItems:[ {
         type: Schema.Types.ObjectId,
-        ref: "Video"
+        ref: "Item"
+    }],
+    buyedItems:[ {
+        type: Schema.Types.ObjectId,
+        ref: "Item"
     }],
     password: {
         type: String,
-        required: [true, 'Passwird is required']
+        required: [true, 'Password is required']
     },
     refreshToken: {
         type: String,
@@ -64,8 +63,7 @@ userSchema.methods.generateAccessToken = function() {
         {
             _id: this._id,
             email: this.email,
-            username: this.username,
-            fullname: this.fullname
+            mobile: this.mobile
         },
         process.env.ACCESS_TOKEN_SECRET,
         {
@@ -86,4 +84,4 @@ userSchema.methods.generateRefreshToken = function() {
     )
 }
 
-export const User = mongoose.model ("User", userSchema)
+export const User = mongoose.model("User", userSchema)

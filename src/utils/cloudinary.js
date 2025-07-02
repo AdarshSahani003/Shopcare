@@ -22,7 +22,7 @@ const uploadOnCloudinary = async(localFilePath) => {
         return response
     } catch (error) {
         fs.unlinkSync(localFilePath)
-        console.log("Error occured while File Upload");
+        console.log("Error occured while File Upload", error);
         return null
     }
 }
