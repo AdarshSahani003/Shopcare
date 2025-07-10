@@ -42,6 +42,9 @@ const userSchema = new Schema({
     refreshToken: {
         type: String,
 
+    },
+    category: {
+        type: String
     }
 },{
     timestamps: true

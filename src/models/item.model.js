@@ -9,23 +9,27 @@ const itemSchema = new Schema({
         type: Number,
         required: true,
     },
-    discription: {
+    description: {
         type: String,
         required: true
     },
     itemImageUrl: {
-        type: String,
+        type: [String],
         required: true
-    },
+    }, 
     condition: {
         type: String,
-        enum: ['superb', 'good', 'ok'],
+        enum: ['super', 'good', 'ok'],
         required: true,
     },
     usedInMonths: {
-        type: Number,
-        enum: [1, 6, 12],
+        type: String,
+        enum: ["1 Month", "6 Months", "12 Months"],
         required: true,
+    },
+    category : {
+        type : String,
+        required : true,
     }
 },{
     timestamps: true

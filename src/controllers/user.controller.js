@@ -121,41 +121,97 @@ const verificationId = asyncHandler(async (req, res) => {
     }
 })
 
+// const listItem = asyncHandler(async (req, res) => {
+//     const { itemName, price, discription, usedInMonths, condition, category } = req.body;
+//     console.log(req.body);
+
+//     if ([itemName, price, discription, usedInMonths, condition,category ].some((field) => !field || field.trim === "")) {
+//         throw new ApiError(400, "All fields are required");
+//     }
+
+//     const localPath = req.file?.path;
+//     if (!localPath) {
+//         throw new ApiError(400, "Item image is required");
+//     }
+
+//     const uploadedImage = await uploadOnCloudinary(localPath);
+//     if(!uploadedImage) {
+//         throw new ApiError(400, "Image upload failed");
+//     }
+
+//     const item = await Item.create({
+//         itemName,
+//         price,
+//         discription,
+//         itemImageUrl: uploadedImage?.url,
+//         usedInMonths,
+//         condition,
+//         category
+//     });
+
+//     // Update the user with the listed item
+//     const listing = await User.findByIdAndUpdate(
+//         req.user._id,
+//         { $push: { listedItems: item._id } },
+//         { new: true }
+//     );
+//     if(!listing) {
+//         new ApiError(400, "Listing failed");
+//     }
+
+//     return res.status(201).json(
+//         new ApiResponse(201, item, "Item listed successfully")
+//     );
+// });
 const listItem = asyncHandler(async (req, res) => {
-    const { itemName, price, discription, usedInMonths, condition } = req.body;
+    const { itemName, price, description, usedInMonths, condition, category } = req.body;
     console.log(req.body);
 
-    if ([itemName, price, discription, usedInMonths, condition ].some((field) => !field || field.trim === "")) {
+    // Validation for required fields
+    if ([itemName, price, description, usedInMonths, condition, category].some(field => !field || field.trim === "")) {
         throw new ApiError(400, "All fields are required");
     }
 
-    const localPath = req.file?.path;
-    if (!localPath) {
-        throw new ApiError(400, "Item image is required");
+    // Check for multiple images
+    const files = req.files.itemImageUrl;
+    console.log("image ", files);
+    if (!files || files.length === 0) {
+        throw new ApiError(400, "At least one image is required");
     }
 
-    const uploadedImage = await uploadOnCloudinary(localPath);
-    if(!uploadedImage) {
-        throw new ApiError(400, "Image upload failed");
+    // Upload each image and collect URLs
+    const imageUploadPromises = files.map(file => uploadOnCloudinary(file.path));
+    const uploadedImages = await Promise.all(imageUploadPromises);
+
+    const failedUploads = uploadedImages.filter(img => !img?.url);
+    if (failedUploads.length > 0) {
+        throw new ApiError(400, "One or more images failed to upload");
     }
 
+    const imageUrls = uploadedImages.map(img => img.url);
+
+    // Create the item
     const item = await Item.create({
         itemName,
         price,
-        discription,
-        itemImageUrl: uploadedImage?.url,
+        description,
+        itemImageUrl: imageUrls,  // ✅ Store all image URLs
         usedInMonths,
-        condition
+        condition,
+        category
     });
+    console.log("upload imae",imageUrls);
 
-    // Update the user with the listed item
+    // Update user with listed item
+    console.log(req.user)
     const listing = await User.findByIdAndUpdate(
         req.user._id,
         { $push: { listedItems: item._id } },
         { new: true }
     );
-    if(!listing) {
-        new ApiError(400, "Listing failed");
+
+    if (!listing) {
+        throw new ApiError(400, "Listing failed");
     }
 
     return res.status(201).json(
@@ -163,8 +219,12 @@ const listItem = asyncHandler(async (req, res) => {
     );
 });
 
+
 const buyItem = asyncHandler(async (req, res) => {
-  const { itemId } = req.body;
+  console.log(req.body);
+  const { _id } = req.body;
+  const itemId = _id;
+  
 
   if (!itemId) {
     throw new ApiError(400, "Item ID is required");
@@ -186,12 +246,12 @@ const buyItem = asyncHandler(async (req, res) => {
   }
 
   return res.status(200).json(
-    new ApiResponse(200, user.buyedItems, "Item successfully added to purchases"));
+    new ApiResponse(200, user.buyedItems, "Item successfully purchases"));
 })
 
 const getAllListedItems = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 9;
+  const limit = parseInt(req.query.limit) || 20;
   const skip = (page - 1) * limit;
 
   const search = req.query.search || "";
@@ -231,18 +291,40 @@ const getAllListedItems = asyncHandler(async (req, res) => {
   );
 });
 
+const getUserItems = asyncHandler(async (req, res) => {
+    const userId = req.user?._id;    
 
+    if (!userId) {
+        throw new ApiError(401, "Unauthorized: User not authenticated");
+    }
+
+    const user = await User.findById(userId)
+        .populate("listedItems")  // Populates full item docs
+        .populate("buyedItems")
+        .select("listedItems buyedItems"); // Select only these fields
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, { 
+            listedItems: user.listedItems,
+            buyedItems: user.buyedItems
+        }, "Fetched user items successfully")
+    );
+});
 
 const loginUser = asyncHandler( async(req, res) => {
-    const {email, mobile, password} = req.body
+    const {email, password} = req.body
 
     
-    if (!email && !mobile) {    // && or ||
+    if (!email) {    // && or ||
         throw new ApiError (400, "phone no or email is required")
     }
 
     const user = await User.findOne({
-        $or: [{mobile}, {email}]
+        $or: [{email}]
     })
     if (!user) {
         throw new ApiError(404, "User not Found")
@@ -255,15 +337,17 @@ const loginUser = asyncHandler( async(req, res) => {
 
     const {accessToken, refreshToken} = await 
     generateAccessTokenAndRefreshToken(user._id)
-
+    console.log("accesstoken is ",accessToken);
+    
     const loggedInUser = await User.findById(user._id).
     select("-password -refreshToken")
 
     const options = {
-        httpOnly: true,
-        secure: true
+        secure: true,
+        sameSite: 'None',
+        maxAge: 7*24*60*60
     }
-
+    
     return res
     .status(200)
     .cookie("accessToken", accessToken, options)
@@ -303,7 +387,7 @@ const logoutUser = asyncHandler( async(req, res) => {
 
 })
 
-export {registerUser, loginUser, logoutUser, listItem, buyItem, getAllListedItems, verificationId}
+export {registerUser, loginUser, logoutUser, listItem, buyItem, getAllListedItems, verificationId, getUserItems}
 
 
 // get user details from frontend
