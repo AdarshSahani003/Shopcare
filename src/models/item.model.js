@@ -19,12 +19,12 @@ const itemSchema = new Schema({
     }, 
     condition: {
         type: String,
-        enum: ['super', 'good', 'ok'],
+        enum: ['superb', 'good', 'ok'],
         required: true,
     },
     usedInMonths: {
         type: String,
-        enum: ["1 Month", "6 Months", "12 Months"],
+        enum: ["1 Month", "3 Months","5 Months","7 Months", "12 Months"],
         required: true,
     },
     category : {

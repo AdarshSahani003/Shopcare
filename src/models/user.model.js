@@ -25,7 +25,7 @@ const userSchema = new Schema({
         index: true
     },
     coverImage: {
-        type: String
+        type: String 
     },
     listedItems:[ {
         type: Schema.Types.ObjectId,

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerUser, loginUser, logoutUser, listItem, buyItem, getAllListedItems, verificationId, getUserItems } from "../controllers/user.controller.js";
+import { registerUser, loginUser, logoutUser, listItem, buyItem, getSingleBuyItem,  getAllListedItems, refreshAccessToken , verificationId, getUserItems } from "../controllers/user.controller.js";
 import { upload } from "../middlewares/multer.middleware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -15,10 +15,12 @@ router.route("/logout").post(verifyJWT, logoutUser)
 router.post('/sell', upload.fields([{ name: 'itemImageUrl', maxCount: 5 }]),verifyJWT, listItem);
 
 router.post("/buy", verifyJWT, buyItem);
+router.route("/getSingleItem").post(getSingleBuyItem );
 
 router.route("/items").get(getAllListedItems)
 
 router.route("/activate/:token").get(verificationId)
+router.route("/refresh-token").get(refreshAccessToken);
 
 router.route("/listUserItems").get(verifyJWT, getUserItems)
 

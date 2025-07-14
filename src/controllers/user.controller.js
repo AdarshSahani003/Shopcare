@@ -5,8 +5,7 @@ import { Item } from "../models/item.model.js";
 import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { sendActivationMail } from "../utils/mailer.js";
-import jwt from "jsonwebtoken";
-
+import jwt from 'jsonwebtoken'
 
 const generateAccessTokenAndRefreshToken = async (userId) => {
     try {
@@ -21,7 +20,7 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
         return {accessToken, refreshToken}
 
     } catch (error) {
-        throw new ApiError(500, "Something went wron while generating Refresh & Access Token")
+        throw new ApiError(500, "Something went wrong while generating Refresh & Access Token")
     }
 }
 
@@ -47,28 +46,10 @@ const registerUser = asyncHandler(async (req, res) => {
     }
         
 
-
-
-    // const avatarLocalPath = req.files?.avatar[0]?.path
-    // //const coverImageLocalPath = req.files?.coverImage[0]?.path
-    // let coverImageLocalPath 
-    // if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
-    //     coverImageLocalPath = req.files.coverImage[0].path
-    // }
-
-    // if(!avatarLocalPath)
-    //     throw new ApiError (400, "Avatar is required")
-
-    // const avatar = await uploadOnCloudinary(avatarLocalPath)
-    // const coverImage = await uploadOnCloudinary(coverImageLocalPath)
-
-    // if(!avatar)
-    //     throw new ApiError(400, "Avatar is required")
-
     const activationToken = jwt.sign(
         { email, username, password, mobile },
         process.env.JWT_ACTIVATION_SECRET,
-        { expiresIn: 60*5 }
+        { expiresIn: 3600 }
     );
 
   const activationLink = `${process.env.BASE_URL}/verify/${activationToken}`;
@@ -101,68 +82,32 @@ const registerUser = asyncHandler(async (req, res) => {
     // )
 })
 
-const verificationId = asyncHandler(async (req, res) => {
+const verificationId = asyncHandler( async (req, res) => {
     const { token } = req.params;
+    console.log(token);
     try {
-        // console.log("step0");
-        const decoded = jwt.verify(token, process.env.JWT_ACTIVATION_SECRET);
-         
+        //console.log("step0dfdfdf");
+        const decodedlog = jwt.decode(token);
+       // console.log("Decoded JWT:", decodedlog);
+        const decoded = jwt.verify(token, process.env.JWT_ACTIVATION_SECRET)
+        // console.log('decoded',decoded);
 
         const newUser = await User.create({
         email: decoded.email,
         username: decoded.username,
         password: decoded.password,
         mobile: decoded.mobile
-        });
+        }); 
+       // console.log(newUser);
         
         return res.status(201).json(new ApiResponse(201, {newUser}, "Account activated"));
     } catch (err) {
+      console.error("JWT error:", err.message);
         throw new ApiError(400, "Invalid or expired activation link");
     }
 })
 
-// const listItem = asyncHandler(async (req, res) => {
-//     const { itemName, price, discription, usedInMonths, condition, category } = req.body;
-//     console.log(req.body);
-
-//     if ([itemName, price, discription, usedInMonths, condition,category ].some((field) => !field || field.trim === "")) {
-//         throw new ApiError(400, "All fields are required");
-//     }
-
-//     const localPath = req.file?.path;
-//     if (!localPath) {
-//         throw new ApiError(400, "Item image is required");
-//     }
-
-//     const uploadedImage = await uploadOnCloudinary(localPath);
-//     if(!uploadedImage) {
-//         throw new ApiError(400, "Image upload failed");
-//     }
-
-//     const item = await Item.create({
-//         itemName,
-//         price,
-//         discription,
-//         itemImageUrl: uploadedImage?.url,
-//         usedInMonths,
-//         condition,
-//         category
-//     });
-
-//     // Update the user with the listed item
-//     const listing = await User.findByIdAndUpdate(
-//         req.user._id,
-//         { $push: { listedItems: item._id } },
-//         { new: true }
-//     );
-//     if(!listing) {
-//         new ApiError(400, "Listing failed");
-//     }
-
-//     return res.status(201).json(
-//         new ApiResponse(201, item, "Item listed successfully")
-//     );
-// });
+ 
 const listItem = asyncHandler(async (req, res) => {
     const { itemName, price, description, usedInMonths, condition, category } = req.body;
     console.log(req.body);
@@ -219,6 +164,44 @@ const listItem = asyncHandler(async (req, res) => {
     );
 });
 
+export const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken = req.cookies.refreshToken;
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "Refresh token missing");
+  }
+
+  try {
+    const decoded = jwt.verify(incomingRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    const user = await User.findById(decoded._id);
+
+    if (!user || user.refreshToken !== incomingRefreshToken) {
+      throw new ApiError(401, "Invalid refresh token");
+    }
+
+    // Generate new access token
+    const newAccessToken = user.generateAccessToken();
+
+    const isDev = process.env.NODE_ENV !== "production";
+    const cookieOptions = {
+      httpOnly: true,
+      secure: !isDev,
+      sameSite: isDev ? 'Lax' : 'None',
+      maxAge: 15 * 60 * 1000 // 15 minutes in ms
+    };
+
+    res.cookie("accessToken", newAccessToken, cookieOptions);
+
+    return res.status(200).json({
+      success: true,
+      message: "Access token refreshed"
+    });
+
+  } catch (err) {
+    throw new ApiError(401, "Invalid or expired refresh token");
+  }
+});
 
 const buyItem = asyncHandler(async (req, res) => {
   console.log(req.body);
@@ -249,25 +232,79 @@ const buyItem = asyncHandler(async (req, res) => {
     new ApiResponse(200, user.buyedItems, "Item successfully purchases"));
 })
 
+const getSingleBuyItem = async (req, res) => {
+  try {
+    const { _id } = req.body;
+    console.log(_id);
+
+    // Find item by ID
+    const item = await Item.findById(_id);
+
+    if (!item) {
+      return res.status(404).json({ success: false, message: "Item not found" });
+    }
+
+    console.log("Category:", item.category);
+
+    // Find all related items with the same category, excluding the current item
+    const relatedItems = await Item.find({
+      category: item.category,
+      _id: { $ne: item._id }  // optional: exclude current item
+    });
+
+    //console.log("Related items:", relatedItems);
+
+    return res.status(200).json({
+      success: true,
+      data: item,
+      relatedItems,
+      message: "Single item fetched successfully",
+    });
+  } catch (error) {
+    console.error("Error fetching item:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
 const getAllListedItems = asyncHandler(async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
   const skip = (page - 1) * limit;
 
   const search = req.query.search || "";
-  const condition = req.query.condition; // optional
-  const maxUsedInMonths = req.query.maxUsedInMonths; // optional
+  const condition = req.query.condition;
+  const minPrice = req.query.minPrice;
+  const maxPrice = req.query.maxPrice;
+  const usage = req.query.usage; // comma-separated: "3,6,12"
 
-  // Build dynamic search filter
+  // Dynamic Filter Object
   const searchFilter = {
     ...(search && {
       $or: [
         { itemName: { $regex: search, $options: "i" } },
-        { discription: { $regex: search, $options: "i" } }
-      ]
+        { discription: { $regex: search, $options: "i" } },
+      ],
     }),
-    ...(condition && { condition }), // e.g. "good"
-    ...(maxUsedInMonths && { usedInMonths: { $lte: Number(maxUsedInMonths) } })
+    ...(condition && { condition }),
+
+    ...(minPrice && maxPrice && {
+      price: { $gte: Number(minPrice), $lte: Number(maxPrice) },
+    }),
+
+    ...(usage && {
+    $expr: {
+      $gte: [
+        {
+          $toInt: {
+            $arrayElemAt: [{ $split:  [{ $toString: "$usedInMonths" }, " "] }, 0],
+          },
+        },
+        parseInt(usage),
+      ],
+    },
+  }),
   };
 
   const totalItems = await Item.countDocuments(searchFilter);
@@ -278,18 +315,23 @@ const getAllListedItems = asyncHandler(async (req, res) => {
     .limit(limit);
 
   return res.status(200).json(
-    new ApiResponse(200, {
-      items,
-      pagination: {
-        totalItems,
-        currentPage: page,
-        totalPages: Math.ceil(totalItems / limit),
-        hasNextPage: skip + limit < totalItems,
-        hasPreviousPage: page > 1,
+    new ApiResponse(
+      200,
+      {
+        items,
+        pagination: {
+          totalItems,
+          currentPage: page,
+          totalPages: Math.ceil(totalItems / limit),
+          hasNextPage: skip + limit < totalItems,
+          hasPreviousPage: page > 1,
+        },
       },
-    }, "Filtered and paginated items fetched successfully")
+      "Filtered and paginated items fetched successfully"
+    )
   );
 });
+
 
 const getUserItems = asyncHandler(async (req, res) => {
     const userId = req.user?._id;    
@@ -337,15 +379,16 @@ const loginUser = asyncHandler( async(req, res) => {
 
     const {accessToken, refreshToken} = await 
     generateAccessTokenAndRefreshToken(user._id)
-    console.log("accesstoken is ",accessToken);
+   // console.log("accesstoken is ",accessToken);
     
     const loggedInUser = await User.findById(user._id).
     select("-password -refreshToken")
-
+    const isDev = process.env.NODE_ENV !== "production"
     const options = {
-        secure: true,
-        sameSite: 'None',
-        maxAge: 7*24*60*60
+        httpOnly: true,
+        secure: !isDev, // true only in production (HTTPS)
+        sameSite: isDev ? 'Lax' : 'None', // 'None'
+        maxAge: 7*24*60*60*1000
     }
     
     return res
@@ -364,20 +407,24 @@ const loginUser = asyncHandler( async(req, res) => {
 })
 
 const logoutUser = asyncHandler( async(req, res) => {
+        console.log(req.user._id);
         await User.findByIdAndUpdate(
             req.user._id,
             {
                 $set: {
-                    refreshToken: undefined
+                    refreshToken: undefined,
+                     
                 }
             },
             {
                 new: true
             }
         )
+        const isDev = process.env.NODE_ENV !== "production"
         const options = {
-            httpOnly: true,
-            secure: true
+             httpOnly: true,
+             secure: !isDev, // ❗ must match how it was set
+             sameSite: isDev ? 'Lax' : 'None',
         }
         return res
         .status(200)
@@ -387,7 +434,7 @@ const logoutUser = asyncHandler( async(req, res) => {
 
 })
 
-export {registerUser, loginUser, logoutUser, listItem, buyItem, getAllListedItems, verificationId, getUserItems}
+export {registerUser, loginUser, logoutUser, listItem, getSingleBuyItem , buyItem, getAllListedItems, verificationId, getUserItems}
 
 
 // get user details from frontend

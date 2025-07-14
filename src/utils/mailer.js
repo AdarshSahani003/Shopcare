@@ -13,18 +13,16 @@ export const sendActivationMail = async (to, link) => {
     await transporter.sendMail({
       from: `"MarketPlace" <${process.env.EMAIL_USER}>`,
       to,
-      subject: "Activate your MarketPlace account",
+      subject: "Activate your ShopCare account",
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.5;">
-          <h2>Welcome to MarketPlace!</h2>
+          <h2>Welcome to ShopCare!</h2>
           <p>Click the link below to activate your account:</p>
           <p>
             <a href="${link}" target="_blank" style="color: #1a73e8; text-decoration: underline;">
               Click here to verify your email
             </a>
           </p>
-          <p>If the link doesn't work, copy and paste this into your browser:</p>
-          <p style="color: #555;">${link}</p>
         </div>
       `
     });

@@ -1,5 +1,5 @@
 import dotenv from "dotenv"
-import connectDB from "./db/index.js";
+import connectDB from "./src/db/index.js";
 import { app } from "./app.js"; 
 
 dotenv.config({
@@ -9,7 +9,7 @@ dotenv.config({
 
 connectDB()
 .then(() => {
-   app.listen(process.env.PORT || 8000, () => {
+   app.listen(process.env.PORT || 4000, () => {
     console.log("Server is RUnning at port",process.env.PORT);
    }) 
 })
